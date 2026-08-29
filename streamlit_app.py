@@ -2,9 +2,8 @@ import streamlit as st
 from openai import OpenAI
 from pathlib import Path
 import tempfile
-import random
 import os
-import re
+import random
 
 
 # =========================================================
@@ -17,215 +16,26 @@ st.set_page_config(
     layout="centered"
 )
 
-
-# =========================================================
-# 2. 이미지 폴더 설정
-# =========================================================
-
-IMAGE_FOLDER = Path("images")
-
-
-# =========================================================
-# 3. 음식 이미지 연결
-# =========================================================
-
-FOOD_IMAGES = {
-
-    # 한식
-    "김치찌개": "kimchi_stew.png",
-    "순두부찌개": "sundubu.png",
-    "제육볶음": "jeyuk.png",
-    "닭갈비": "dakgalbi.png",
-    "삼겹살": "samgyeopsal.png",
-    "비빔밥": "bibimbap.png",
-    "국밥": "gukbap.png",
-
-    # 분식
-    "떡볶이": "tteokbokki.png",
-    "김밥": "gimbap.png",
-
-    # 중식
-    "짜장면": "jjajangmyeon.png",
-    "짬뽕": "jjamppong.png",
-    "마라탕": "malatang.png",
-
-    # 일식
-    "돈까스": "donkatsu.png",
-    "초밥": "sushi.png",
-    "라멘": "ramen.png",
-
-    # 양식
-    "토마토 파스타": "pasta.png",
-    "크림 파스타": "pasta.png",
-    "알리오 올리오": "pasta.png",
-    "파스타": "pasta.png",
-    "피자": "pizza.png",
-
-    # 패스트푸드
-    "햄버거": "burger.png",
-    "치킨": "chicken.png",
-
-    # 아시아
-    "쌀국수": "pho.png",
-    "팟타이": "padthai.png",
-
-    # 건강식
-    "포케": "poke.png",
-    "샐러드": "salad.png",
-    "닭가슴살 샐러드": "salad.png",
-    "연어 샐러드": "salad.png"
-}
-
-
-# =========================================================
-# 4. 카테고리 대표 이미지
-# =========================================================
-
-CATEGORY_IMAGES = {
-
-    "한식": "category_korean.png",
-
-    "중식": "category_chinese.png",
-
-    "일식": "category_japanese.png",
-
-    "양식": "category_western.png",
-
-    "분식": "category_snack.png",
-
-    "아시아 음식": "category_asian.png",
-
-    "패스트푸드": "category_fastfood.png",
-
-    "샐러드 / 건강식": "category_healthy.png"
-}
-
-
-# =========================================================
-# 5. 이미지 관련 함수
-# =========================================================
-
-def get_image_path(filename):
-
-    path = IMAGE_FOLDER / filename
-
-    if path.exists():
-        return path
-
-    return None
-
-
-def get_food_image(menu_name):
-
-    # 메뉴 이름과 정확하게 일치
-    if menu_name in FOOD_IMAGES:
-
-        path = get_image_path(
-            FOOD_IMAGES[menu_name]
-        )
-
-        if path:
-            return path
-
-
-    # AI 답변에서 메뉴명이 조금 길어진 경우
-    for food_name, filename in FOOD_IMAGES.items():
-
-        if food_name in menu_name:
-
-            path = get_image_path(filename)
-
-            if path:
-                return path
-
-
-    # 기본 이미지
-    default_path = get_image_path(
-        "default_food.png"
-    )
-
-    return default_path
-
-
-def show_food_image(
-    menu_name,
-    width=300
-):
-
-    image_path = get_food_image(
-        menu_name
-    )
-
-    if image_path:
-
-        st.image(
-            str(image_path),
-            width=width
-        )
-
-
-def show_category_image(
-    category
-):
-
-    if category in CATEGORY_IMAGES:
-
-        image_path = get_image_path(
-            CATEGORY_IMAGES[category]
-        )
-
-        if image_path:
-
-            st.image(
-                str(image_path),
-                use_container_width=True
-            )
-
-
-# =========================================================
-# 6. 상단 배너
-# =========================================================
-
 st.title("🍽️ 오늘 뭐 먹지?")
-
-
-banner_path = get_image_path(
-    "main_banner.png"
-)
-
-
-if banner_path:
-
-    st.image(
-        str(banner_path),
-        use_container_width=True
-    )
-
 
 st.write(
     """
-    오늘 메뉴가 고민된다면 이제 그만 고민하세요! 😋
+    오늘 먹을 메뉴가 고민된다면 제가 골라드릴게요! 😋
 
-    **AI 추천, 음성 추천, 랜덤 뽑기, 음식 월드컵**
-
-    원하는 방법으로 오늘의 메뉴를 결정해보세요.
+    **AI 추천부터 음성 질문, 랜덤 뽑기, 음식 월드컵까지**
+    원하는 방식으로 오늘의 메뉴를 결정해보세요.
     """
 )
 
 
 # =========================================================
-# 7. OpenAI API KEY
+# 2. OpenAI API KEY 설정
 # =========================================================
 
 try:
-
-    openai_api_key = st.secrets[
-        "OPENAI_API_KEY"
-    ]
-
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
 
 except Exception:
-
     openai_api_key = st.sidebar.text_input(
         "OpenAI API Key",
         type="password"
@@ -247,33 +57,30 @@ client = OpenAI(
 
 
 # =========================================================
-# 8. AI 모델
+# 3. 사용할 AI 모델
 # =========================================================
 
 TEXT_MODEL = "gpt-5.6-luna"
 
-TRANSCRIBE_MODEL = (
-    "gpt-4o-mini-transcribe"
-)
+TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 
-VOICE_MODEL = (
-    "gpt-4o-mini-tts"
-)
+VOICE_MODEL = "gpt-4o-mini-tts"
 
 
 # =========================================================
-# 9. 음식 데이터
+# 4. 메뉴 데이터
 # =========================================================
 
 MENU_DATA = {
 
     "한식": [
-
         "김치찌개",
+        "된장찌개",
         "순두부찌개",
         "제육볶음",
         "닭갈비",
         "삼겹살",
+        "불고기",
         "비빔밥",
         "국밥",
         "냉면",
@@ -284,22 +91,20 @@ MENU_DATA = {
         "갈비탕"
     ],
 
-
     "중식": [
-
         "짜장면",
         "짬뽕",
         "볶음밥",
         "탕수육",
+        "마파두부",
         "마라탕",
         "마라샹궈",
         "유린기",
-        "양꼬치"
+        "양꼬치",
+        "우육면"
     ],
 
-
     "일식": [
-
         "돈까스",
         "초밥",
         "우동",
@@ -307,12 +112,12 @@ MENU_DATA = {
         "규동",
         "가츠동",
         "카레",
-        "소바"
+        "회덮밥",
+        "소바",
+        "오므라이스"
     ],
 
-
     "양식": [
-
         "토마토 파스타",
         "크림 파스타",
         "알리오 올리오",
@@ -320,244 +125,234 @@ MENU_DATA = {
         "피자",
         "스테이크",
         "라자냐",
-        "함박스테이크"
+        "감바스",
+        "함박스테이크",
+        "필라프"
     ],
 
-
     "분식": [
-
         "떡볶이",
         "김밥",
         "라면",
         "순대",
         "튀김",
         "쫄면",
-        "라볶이"
+        "라볶이",
+        "어묵",
+        "김치볶음밥",
+        "떡꼬치"
     ],
 
-
     "아시아 음식": [
-
         "쌀국수",
         "팟타이",
         "분짜",
         "나시고랭",
+        "카오팟",
         "반미",
-        "인도 카레"
+        "탄탄면",
+        "똠얌꿍",
+        "인도 카레",
+        "탄두리치킨"
     ],
 
-
     "패스트푸드": [
-
         "햄버거",
         "치킨",
         "핫도그",
         "치킨버거",
+        "감자튀김",
+        "타코",
+        "부리토",
         "샌드위치",
-        "피자"
+        "피자",
+        "치킨텐더"
     ],
 
-
     "샐러드 / 건강식": [
-
         "닭가슴살 샐러드",
         "연어 샐러드",
         "포케",
         "두부 샐러드",
         "샌드위치",
-        "월남쌈"
+        "그릭요거트",
+        "닭가슴살 도시락",
+        "월남쌈",
+        "곤약 비빔밥",
+        "두부덮밥"
     ]
 }
 
 
-# =========================================================
-# 10. 모든 메뉴 리스트
-# =========================================================
-
+# 모든 메뉴를 하나의 리스트로 합치기
 ALL_MENUS = []
-
 
 for category_menus in MENU_DATA.values():
 
     for menu in category_menus:
 
         if menu not in ALL_MENUS:
-
-            ALL_MENUS.append(
-                menu
-            )
+            ALL_MENUS.append(menu)
 
 
 # =========================================================
-# 11. AI 시스템 프롬프트
+# 5. AI 메뉴 추천 역할 설정
 # =========================================================
 
 FOOD_SYSTEM_PROMPT = """
 당신은 사용자가 오늘 먹을 음식을 결정하도록 도와주는
 친근하고 센스 있는 AI 메뉴 추천 전문가입니다.
 
-사용자의 상황과 취향을 분석해서
+사용자의 상황, 취향, 예산, 음식 종류,
+매운맛 선호도, 배고픔과 기분을 종합해서
 오늘 가장 잘 어울리는 메뉴를 추천하세요.
 
 
-[고려해야 할 정보]
+[고려할 정보]
 
-1. 식사 시간
+1. 아침 / 점심 / 저녁 / 야식
 2. 음식 종류
-3. 혼밥 또는 동행 여부
-4. 배달 / 외식 / 포장 / 집밥
+3. 혼밥인지 여러 명인지
+4. 배달 / 외식 / 포장 / 집밥 여부
 5. 예산
-6. 매운맛 선호
-7. 배고픔
+6. 매운맛 선호도
+7. 배고픔 정도
 8. 현재 기분
 9. 싫어하거나 먹지 못하는 음식
-10. 이전에 이미 먹은 음식
+10. 이전에 이미 먹었다고 말한 음식
 
 
-[답변 형식]
+[추천 방식]
 
-가능하면 메뉴를 3개 추천합니다.
+가능하면 메뉴를 3개 추천하세요.
+
+다음 형태로 답변하세요.
 
 
 ### 🥇 오늘의 1순위
-
 메뉴 이름
 
-추천 이유
+현재 상황에서 추천하는 이유를 짧게 설명하세요.
 
 
 ### 🥈 2순위
-
 메뉴 이름
 
-추천 이유
+추천 이유를 짧게 설명하세요.
 
 
 ### 🥉 3순위
-
 메뉴 이름
 
-추천 이유
+추천 이유를 짧게 설명하세요.
 
 
-마지막에는 반드시 아래 형태로 답하세요.
+마지막에는 반드시
 
-🍽️ 오늘 하나만 고른다면: 메뉴 이름
+**🍽️ 오늘 하나만 고른다면: 메뉴 이름**
+
+형태로 최종 메뉴 하나를 확실하게 골라주세요.
 
 
-[중요]
+[중요한 규칙]
 
-- 최종 메뉴는 하나를 확실하게 결정하세요.
 - 너무 많은 메뉴를 나열하지 마세요.
-- 싫어하는 음식은 제외하세요.
-- 먹지 못하는 음식은 반드시 제외하세요.
-- 이미 먹었다고 한 메뉴는 가급적 제외하세요.
-- 실제 존재 여부를 확인하지 않은 식당 이름은 만들지 마세요.
-- 위치나 날씨를 확인하지 않았다면 추측하지 마세요.
-- 자연스러운 한국어를 사용하세요.
-- 설명은 너무 길지 않게 하세요.
+- 최종적으로 하나를 확실하게 선택해주세요.
+- 사용자가 싫다고 한 음식은 추천하지 마세요.
+- 이미 먹었다고 말한 음식은 가급적 제외하세요.
+- 알레르기나 먹지 못하는 음식은 반드시 제외하세요.
+- 조건이 충분하면 불필요한 질문을 하지 마세요.
+- 정보가 너무 부족할 경우에만 질문 1~2개를 하세요.
+- 실제 존재 여부를 확인하지 않은 음식점 이름은 만들지 마세요.
+- 위치나 날씨를 확인하지 않았다면 임의로 만들어내지 마세요.
+- 친근하고 자연스러운 한국어를 사용하세요.
+- 설명은 길지 않게 해주세요.
 """
 
 
 # =========================================================
-# 12. 처음 메시지
+# 6. 처음 환영 메시지
 # =========================================================
 
 WELCOME_MESSAGE = """
 안녕하세요! 🍽️
 
-오늘 **뭐 먹을지 고민 중이신가요?**
+오늘도 **뭐 먹을지 고민 중이신가요?**
 
-원하는 방법으로 메뉴를 골라보세요.
+제가 오늘 먹기 좋은 메뉴를 골라드릴게요. 😋
 
-💬 **AI에게 추천받기**
+### 원하는 방법을 골라보세요.
+
+💬 **AI에게 메뉴 추천받기**
 
 🎤 **말해서 추천받기**
 
-🎲 **랜덤으로 뽑기**
+🎲 **랜덤 메뉴 뽑기**
 
 🥊 **음식 월드컵**
 
-예를 들어
+예를 들어,
 
-**"오늘 스트레스 받았는데 매콤한 거 먹고 싶어"**
+- "오늘 저녁 뭐 먹지?"
+- "매콤하고 든든한 거 먹고 싶어"
+- "만원 정도로 혼밥 추천해줘"
+- "데이트 메뉴 추천해줘"
+- "어제 치킨 먹었으니까 빼줘"
 
-처럼 편하게 말해주세요. 😋
+처럼 질문해보세요!
 """
 
 
 if "messages" not in st.session_state:
 
     st.session_state.messages = [
-
         {
             "role": "assistant",
             "content": WELCOME_MESSAGE,
+            "voice": False,
             "exclude_from_model": True
         }
-
     ]
 
 
 # =========================================================
-# 13. 게임 메뉴 생성
+# 7. 게임에 사용할 메뉴 가져오기
 # =========================================================
 
-def get_game_menu_pool(
-    food_type,
-    avoid_food
-):
+def get_game_menu_pool(food_type, avoid_food):
 
     if food_type in MENU_DATA:
 
-        menu_pool = MENU_DATA[
-            food_type
-        ].copy()
+        menu_pool = MENU_DATA[food_type].copy()
 
     else:
 
         menu_pool = ALL_MENUS.copy()
 
 
+    # 사용자가 쉼표로 제외 음식을 입력했을 경우
     if avoid_food:
 
         avoid_words = [
-
             word.strip()
-
-            for word in
-            avoid_food.replace(
-                "/",
-                ","
-            ).split(",")
-
+            for word in avoid_food.replace("/", ",").split(",")
             if word.strip()
         ]
 
-
         filtered_pool = []
-
 
         for menu in menu_pool:
 
             blocked = False
 
-
             for word in avoid_words:
 
                 if word in menu:
-
                     blocked = True
-
                     break
 
-
             if not blocked:
-
-                filtered_pool.append(
-                    menu
-                )
-
+                filtered_pool.append(menu)
 
         menu_pool = filtered_pool
 
@@ -566,12 +361,10 @@ def get_game_menu_pool(
 
 
 # =========================================================
-# 14. 음식 월드컵 시작
+# 8. 음식 월드컵 시작 함수
 # =========================================================
 
-def start_worldcup(
-    menu_pool
-):
+def start_worldcup(menu_pool):
 
     if len(menu_pool) < 2:
 
@@ -583,15 +376,12 @@ def start_worldcup(
 
 
     if len(menu_pool) >= 8:
-
         tournament_size = 8
 
     elif len(menu_pool) >= 4:
-
         tournament_size = 4
 
     else:
-
         tournament_size = 2
 
 
@@ -601,9 +391,7 @@ def start_worldcup(
     )
 
 
-    st.session_state.worldcup_contestants = (
-        contestants
-    )
+    st.session_state.worldcup_contestants = contestants
 
     st.session_state.worldcup_winners = []
 
@@ -615,17 +403,14 @@ def start_worldcup(
 
 
 # =========================================================
-# 15. 월드컵 선택
+# 9. 음식 월드컵 선택 함수
 # =========================================================
 
-def choose_worldcup_menu(
-    winner
-):
+def choose_worldcup_menu(winner):
 
     st.session_state.worldcup_winners.append(
         winner
     )
-
 
     st.session_state.worldcup_match_index += 2
 
@@ -635,6 +420,7 @@ def choose_worldcup_menu(
     )
 
 
+    # 현재 라운드가 끝난 경우
     if (
         st.session_state.worldcup_match_index
         >= len(contestants)
@@ -645,6 +431,7 @@ def choose_worldcup_menu(
         )
 
 
+        # 최종 우승
         if len(winners) == 1:
 
             st.session_state.worldcup_champion = (
@@ -652,6 +439,7 @@ def choose_worldcup_menu(
             )
 
 
+        # 다음 라운드
         else:
 
             st.session_state.worldcup_contestants = (
@@ -667,58 +455,15 @@ def choose_worldcup_menu(
 
 
 # =========================================================
-# 16. AI 답변에서 최종 메뉴 추출
-# =========================================================
-
-def extract_final_menu(
-    response_text
-):
-
-    marker = (
-        "오늘 하나만 고른다면:"
-    )
-
-
-    if marker not in response_text:
-
-        return None
-
-
-    result = response_text.split(
-        marker
-    )[-1]
-
-
-    result = result.split(
-        "\n"
-    )[0]
-
-
-    # 마크다운 제거
-    result = re.sub(
-        r"[*_#`]",
-        "",
-        result
-    )
-
-
-    result = result.replace(
-        "🍽️",
-        ""
-    )
-
-
-    return result.strip()
-
-
-# =========================================================
-# 17. 사이드바
+# 10. 사이드바 설정
 # =========================================================
 
 with st.sidebar:
 
-    st.header(
-        "🍴 오늘의 식사 설정"
+    st.header("🍴 오늘의 식사 설정")
+
+    st.caption(
+        "원하는 조건만 선택해도 됩니다."
     )
 
 
@@ -750,17 +495,6 @@ with st.sidebar:
     )
 
 
-    # =============================================
-    # 카테고리 대표 이미지
-    # =============================================
-
-    if food_type != "상관없음":
-
-        show_category_image(
-            food_type
-        )
-
-
     situation = st.selectbox(
         "👥 누구와 먹나요?",
         [
@@ -787,7 +521,7 @@ with st.sidebar:
 
 
     budget = st.selectbox(
-        "💰 1인당 예산",
+        "💰 1인당 예산은?",
         [
             "상관없음",
             "5,000원 이하",
@@ -813,7 +547,7 @@ with st.sidebar:
 
 
     hunger = st.select_slider(
-        "🍖 배고픔",
+        "🍖 지금 얼마나 배고픈가요?",
         options=[
             "가볍게",
             "보통",
@@ -825,7 +559,7 @@ with st.sidebar:
 
 
     mood = st.selectbox(
-        "😊 지금 기분",
+        "😊 지금 기분은?",
         [
             "상관없음",
             "기분 좋은 날",
@@ -840,16 +574,18 @@ with st.sidebar:
 
     avoid_food = st.text_input(
         "🚫 먹기 싫거나 못 먹는 음식",
-        placeholder="예: 해산물, 치즈"
+        placeholder="예: 해산물, 치즈, 오이"
     )
 
 
     st.divider()
 
 
-    st.subheader(
-        "🔊 음성 설정"
-    )
+    # =====================================================
+    # 음성 설정
+    # =====================================================
+
+    st.subheader("🔊 음성 설정")
 
 
     voice_answer = st.toggle(
@@ -859,46 +595,44 @@ with st.sidebar:
 
 
     st.caption(
-        "음성은 AI가 생성한 음성입니다."
+        "음성 답변은 AI가 생성한 음성입니다."
     )
 
 
     st.divider()
 
 
+    # =====================================================
+    # 초기화
+    # =====================================================
+
     if st.button(
-        "🗑️ 처음부터 다시 시작",
+        "🗑️ 대화 초기화",
         use_container_width=True
     ):
 
         st.session_state.messages = [
-
             {
                 "role": "assistant",
                 "content": WELCOME_MESSAGE,
+                "voice": False,
                 "exclude_from_model": True
             }
-
         ]
 
 
-        reset_keys = [
-
+        # 게임 기록도 초기화
+        keys_to_delete = [
             "random_menu",
-
             "worldcup_contestants",
-
             "worldcup_winners",
-
             "worldcup_match_index",
-
             "worldcup_champion",
-
             "worldcup_error"
         ]
 
 
-        for key in reset_keys:
+        for key in keys_to_delete:
 
             if key in st.session_state:
 
@@ -909,27 +643,27 @@ with st.sidebar:
 
 
 # =========================================================
-# 18. 현재 조건
+# 11. 현재 조건 확인
 # =========================================================
 
 with st.expander(
-    "🍴 현재 선택한 조건"
+    "🍴 현재 선택한 조건 보기"
 ):
 
     st.write(
-        f"**시간:** {meal_time}"
+        f"**식사 시간:** {meal_time}"
     )
 
     st.write(
-        f"**종류:** {food_type}"
+        f"**음식 종류:** {food_type}"
     )
 
     st.write(
-        f"**누구와:** {situation}"
+        f"**식사 상대:** {situation}"
     )
 
     st.write(
-        f"**방법:** {eating_method}"
+        f"**식사 방법:** {eating_method}"
     )
 
     st.write(
@@ -955,7 +689,7 @@ with st.expander(
 
 
 # =========================================================
-# 19. 기존 채팅 출력
+# 12. 기존 대화 출력
 # =========================================================
 
 for message in st.session_state.messages:
@@ -966,10 +700,7 @@ for message in st.session_state.messages:
 
         if (
             message["role"] == "user"
-            and message.get(
-                "voice",
-                False
-            )
+            and message.get("voice", False)
         ):
 
             st.caption(
@@ -982,21 +713,7 @@ for message in st.session_state.messages:
         )
 
 
-        # AI 최종 추천 음식 이미지
-        if message.get(
-            "final_menu"
-        ):
-
-            show_food_image(
-                message["final_menu"],
-                width=300
-            )
-
-
-        # 음성 답변
-        if message.get(
-            "audio"
-        ):
+        if message.get("audio"):
 
             st.audio(
                 message["audio"],
@@ -1005,13 +722,15 @@ for message in st.session_state.messages:
 
 
 # =========================================================
-# 20. 메뉴 게임
+# 13. 메뉴 결정 게임
 # =========================================================
 
 st.divider()
 
-st.header(
-    "🎮 메뉴 결정 게임"
+st.header("🎮 메뉴 결정 게임")
+
+st.write(
+    "생각하기도 귀찮다면 게임으로 결정해보세요!"
 )
 
 
@@ -1024,19 +743,34 @@ game_tab1, game_tab2 = st.tabs(
 
 
 # =========================================================
-# 21. 랜덤 메뉴
+# 14. 랜덤 메뉴 뽑기
 # =========================================================
 
 with game_tab1:
 
     st.subheader(
-        "🎰 운명의 메뉴 뽑기"
+        "🎰 오늘의 랜덤 메뉴"
     )
-
 
     st.write(
-        "고민하기 귀찮다면 운명에 맡겨보세요!"
+        """
+        버튼을 누르면 오늘 먹을 메뉴를
+        하나 랜덤으로 골라드립니다.
+        """
     )
+
+
+    if food_type != "상관없음":
+
+        st.caption(
+            f"현재 **{food_type}** 메뉴에서 뽑습니다."
+        )
+
+    else:
+
+        st.caption(
+            "모든 음식 종류에서 랜덤으로 뽑습니다."
+        )
 
 
     game_pool = get_game_menu_pool(
@@ -1045,25 +779,16 @@ with game_tab1:
     )
 
 
-    if food_type != "상관없음":
-
-        st.caption(
-            f"현재 {food_type} 메뉴 중에서 뽑습니다."
-        )
-
-
     if st.button(
-        "🎲 오늘의 메뉴 뽑기",
+        "🎲 운명의 메뉴 뽑기",
         use_container_width=True,
-        key="random_button"
+        key="random_food_button"
     ):
 
         if game_pool:
 
             st.session_state.random_menu = (
-                random.choice(
-                    game_pool
-                )
+                random.choice(game_pool)
             )
 
         else:
@@ -1081,27 +806,17 @@ with game_tab1:
 
 
         st.success(
-            f"🎉 오늘의 메뉴는 {random_menu}!"
-        )
-
-
-        # =============================================
-        # 랜덤 결과 이미지
-        # =============================================
-
-        show_food_image(
-            random_menu,
-            width=350
+            f"🎉 오늘의 메뉴는 **{random_menu}**!"
         )
 
 
         st.markdown(
             f"""
-## 🍽️ {random_menu}
+### 🍽️ {random_menu}
 
-오늘은 고민 그만!
+오늘은 더 이상 고민 금지!
 
-**{random_menu}로 결정! 😋**
+**오늘 메뉴는 {random_menu}로 결정! 😋**
 """
         )
 
@@ -1109,36 +824,34 @@ with game_tab1:
         if st.button(
             "🔄 다시 뽑기",
             use_container_width=True,
-            key="random_again"
+            key="random_food_again"
         ):
 
             if game_pool:
 
                 st.session_state.random_menu = (
-                    random.choice(
-                        game_pool
-                    )
+                    random.choice(game_pool)
                 )
 
                 st.rerun()
 
 
 # =========================================================
-# 22. 음식 월드컵
+# 15. 음식 월드컵
 # =========================================================
 
 with game_tab2:
 
     st.subheader(
-        "🥊 음식 월드컵"
+        "🥊 오늘 뭐 먹지? 음식 월드컵"
     )
-
 
     st.write(
         """
-        둘 중 더 먹고 싶은 음식을 선택하세요.
+        둘 중 더 먹고 싶은 메뉴를 계속 선택하세요.
 
-        마지막까지 살아남은 음식이 오늘의 메뉴입니다. 🏆
+        마지막까지 살아남은 음식이
+        **오늘의 메뉴**가 됩니다. 🏆
         """
     )
 
@@ -1152,7 +865,7 @@ with game_tab2:
     if st.button(
         "🏁 음식 월드컵 시작",
         use_container_width=True,
-        key="worldcup_start"
+        key="start_worldcup_button"
     ):
 
         start_worldcup(
@@ -1162,6 +875,7 @@ with game_tab2:
         st.rerun()
 
 
+    # 오류
     if st.session_state.get(
         "worldcup_error"
     ):
@@ -1172,7 +886,7 @@ with game_tab2:
 
 
     # =====================================================
-    # 월드컵 우승
+    # 우승 메뉴
     # =====================================================
 
     if st.session_state.get(
@@ -1192,28 +906,23 @@ with game_tab2:
         )
 
 
-        # 우승 음식 이미지
-        show_food_image(
-            champion,
-            width=400
-        )
-
-
         st.markdown(
             f"""
+## 🏆 오늘의 최종 메뉴
+
 # 🍽️ {champion}
 
 고민 끝!
 
-**오늘은 {champion} 먹는 날! 😋**
+**오늘은 {champion} 먹으러 가자! 😋**
 """
         )
 
 
         if st.button(
-            "🔄 다시 월드컵",
+            "🔄 월드컵 다시 시작",
             use_container_width=True,
-            key="worldcup_again"
+            key="restart_worldcup_button"
         ):
 
             start_worldcup(
@@ -1224,7 +933,7 @@ with game_tab2:
 
 
     # =====================================================
-    # 월드컵 진행
+    # 월드컵 진행 중
     # =====================================================
 
     elif (
@@ -1237,16 +946,17 @@ with game_tab2:
         )
 
 
-        index = (
+        match_index = (
             st.session_state.worldcup_match_index
         )
 
 
-        if index < len(contestants):
+        if (
+            match_index
+            < len(contestants)
+        ):
 
-            remaining = len(
-                contestants
-            )
+            remaining = len(contestants)
 
 
             if remaining == 8:
@@ -1268,28 +978,38 @@ with game_tab2:
                 )
 
 
+            match_number = (
+                match_index // 2
+            ) + 1
+
+
+            total_matches = (
+                len(contestants) // 2
+            )
+
+
             st.markdown(
-                f"## 🏟️ {round_name}"
+                f"""
+### 🏟️ {round_name}
+
+**{match_number} / {total_matches} 경기**
+
+둘 중 지금 더 먹고 싶은 음식을 선택하세요.
+"""
             )
 
 
             menu_a = contestants[
-                index
+                match_index
             ]
 
             menu_b = contestants[
-                index + 1
+                match_index + 1
             ]
 
 
-            col1, col2 = st.columns(
-                2
-            )
+            col1, col2 = st.columns(2)
 
-
-            # =============================================
-            # 왼쪽 음식
-            # =============================================
 
             with col1:
 
@@ -1298,19 +1018,14 @@ with game_tab2:
                 )
 
 
-                # 음식 이미지
-                show_food_image(
-                    menu_a,
-                    width=250
-                )
-
-
                 if st.button(
                     f"👉 {menu_a}",
                     use_container_width=True,
                     key=(
-                        f"a_{round_name}_"
-                        f"{index}_{menu_a}"
+                        f"worldcup_a_"
+                        f"{round_name}_"
+                        f"{match_index}_"
+                        f"{menu_a}"
                     )
                 ):
 
@@ -1319,10 +1034,6 @@ with game_tab2:
                     )
 
 
-            # =============================================
-            # 오른쪽 음식
-            # =============================================
-
             with col2:
 
                 st.markdown(
@@ -1330,19 +1041,14 @@ with game_tab2:
                 )
 
 
-                # 음식 이미지
-                show_food_image(
-                    menu_b,
-                    width=250
-                )
-
-
                 if st.button(
                     f"👉 {menu_b}",
                     use_container_width=True,
                     key=(
-                        f"b_{round_name}_"
-                        f"{index}_{menu_b}"
+                        f"worldcup_b_"
+                        f"{round_name}_"
+                        f"{match_index}_"
+                        f"{menu_b}"
                     )
                 ):
 
@@ -1352,18 +1058,18 @@ with game_tab2:
 
 
 # =========================================================
-# 23. 음성 입력
+# 16. 음성 질문
 # =========================================================
 
 st.divider()
 
-st.header(
-    "🎤 말해서 추천받기"
-)
-
+st.header("🎤 말해서 추천받기")
 
 st.write(
-    "먹고 싶은 음식이나 현재 상황을 말해주세요."
+    """
+    마이크 버튼을 누르고
+    지금 먹고 싶은 음식이나 상황을 말해보세요.
+    """
 )
 
 
@@ -1381,7 +1087,7 @@ voice_send = st.button(
 
 
 # =========================================================
-# 24. 글 입력
+# 17. 글 질문
 # =========================================================
 
 typed_prompt = st.chat_input(
@@ -1389,15 +1095,16 @@ typed_prompt = st.chat_input(
 )
 
 
+# =========================================================
+# 18. 최종 사용자 질문 결정
+# =========================================================
+
 prompt = None
 
 voice_mode = False
 
 
-# =========================================================
-# 25. 음성 → 글 변환
-# =========================================================
-
+# 음성 질문
 if (
     voice_send
     and voice_audio is not None
@@ -1406,16 +1113,13 @@ if (
     try:
 
         with st.spinner(
-            "🎧 목소리를 듣고 있어요..."
+            "🎧 음성을 듣고 있어요..."
         ):
 
             transcription = (
                 client.audio.transcriptions.create(
-
                     model=TRANSCRIBE_MODEL,
-
                     file=voice_audio,
-
                     language="ko"
                 )
             )
@@ -1428,64 +1132,72 @@ if (
             voice_mode = True
 
 
+        if not prompt:
+
+            st.warning(
+                "음성을 정확하게 인식하지 못했습니다. 다시 말해주세요."
+            )
+
+            prompt = None
+
+
     except Exception as e:
 
         st.error(
-            f"음성 인식 오류: {e}"
+            f"음성 인식 중 오류가 발생했습니다: {e}"
         )
 
+        prompt = None
 
+
+# 글 질문
 elif typed_prompt:
 
-    prompt = (
-        typed_prompt.strip()
-    )
+    prompt = typed_prompt.strip()
+
+    voice_mode = False
 
 
 # =========================================================
-# 26. 질문 처리
+# 19. 사용자 질문 처리
 # =========================================================
 
 if prompt:
 
+    # 사용자 메시지 저장
     st.session_state.messages.append(
-
         {
             "role": "user",
             "content": prompt,
             "voice": voice_mode
         }
-
     )
 
 
-    with st.chat_message(
-        "user"
-    ):
+    # 사용자 메시지 출력
+    with st.chat_message("user"):
 
         if voice_mode:
 
             st.caption(
-                "🎤 음성 질문"
+                "🎤 음성으로 질문했습니다."
             )
 
 
-        st.markdown(
-            prompt
-        )
+        st.markdown(prompt)
 
 
     # =====================================================
-    # 사용자 조건
+    # 현재 메뉴 조건
     # =====================================================
 
     FOOD_CONTEXT = f"""
-현재 사용자의 식사 조건입니다.
+현재 사용자가 선택한 메뉴 추천 조건입니다.
 
 식사 시간:
 {meal_time}
 
-음식 종류:
+선호 음식 종류:
 {food_type}
 
 누구와 먹는지:
@@ -1494,30 +1206,33 @@ if prompt:
 식사 방식:
 {eating_method}
 
-예산:
+1인당 예상 예산:
 {budget}
 
-매운맛:
+매운맛 선호:
 {spicy}
 
-배고픔:
+배고픔 정도:
 {hunger}
 
 현재 기분:
 {mood}
 
-제외 음식:
-{avoid_food if avoid_food else "없음"}
+먹기 싫거나 먹지 못하는 음식:
+{avoid_food if avoid_food else "특별히 없음"}
 
-사용자가 직접 대화에서 말한 내용이 있다면
-선택 메뉴보다 대화 내용을 우선하세요.
 
-가능하면 일반적으로 알려진 구체적인 메뉴명을 사용하세요.
+위 조건과 사용자가 실제 대화에서 말한 내용을
+함께 고려해서 메뉴를 추천하세요.
+
+사용자가 대화에서 직접 말한 내용과
+선택 조건이 서로 다르면
+사용자가 직접 말한 내용을 우선하세요.
 """
 
 
     # =====================================================
-    # 대화 기록
+    # AI에 전달할 대화 기록 만들기
     # =====================================================
 
     conversation = []
@@ -1539,49 +1254,23 @@ if prompt:
         ]:
 
             conversation.append(
-
                 {
                     "role": message["role"],
                     "content": message["content"]
                 }
-
             )
 
 
     # =====================================================
-    # AI 답변
+    # AI 메뉴 추천 생성
     # =====================================================
 
-    with st.chat_message(
-        "assistant"
-    ):
+    with st.chat_message("assistant"):
 
         try:
 
-            # =============================================
-            # 귀여운 로딩 이미지
-            # =============================================
-
-            loading_placeholder = (
-                st.empty()
-            )
-
-
-            loading_path = get_image_path(
-                "loading_food.png"
-            )
-
-
-            if loading_path:
-
-                loading_placeholder.image(
-                    str(loading_path),
-                    width=140
-                )
-
-
             with st.spinner(
-                "🍳 맛있는 메뉴를 고민하고 있어요..."
+                "🍳 오늘 먹기 좋은 메뉴를 고르고 있어요..."
             ):
 
                 response = (
@@ -1605,48 +1294,15 @@ if prompt:
                 )
 
 
-            # 로딩 이미지 제거
-            loading_placeholder.empty()
-
-
-            # =============================================
-            # AI 답변 출력
-            # =============================================
-
+            # 글 답변
             st.markdown(
                 assistant_response
             )
 
 
-            # =============================================
-            # 최종 추천 메뉴 찾기
-            # =============================================
-
-            final_menu = extract_final_menu(
-                assistant_response
-            )
-
-
-            # =============================================
-            # 최종 추천 메뉴 이미지
-            # =============================================
-
-            if final_menu:
-
-                st.markdown(
-                    "### 🖼️ 오늘의 추천 메뉴"
-                )
-
-
-                show_food_image(
-                    final_menu,
-                    width=350
-                )
-
-
-            # =============================================
-            # 음성 답변
-            # =============================================
+            # =================================================
+            # 음성 답변 생성
+            # =================================================
 
             audio_bytes = None
 
@@ -1662,9 +1318,11 @@ if prompt:
                         "🔊 음성 답변을 만들고 있어요..."
                     ):
 
-                        with tempfile.NamedTemporaryFile(
-                            delete=False,
-                            suffix=".mp3"
+                        with (
+                            tempfile.NamedTemporaryFile(
+                                delete=False,
+                                suffix=".mp3"
+                            )
                         ) as temp_file:
 
                             speech_file_path = Path(
@@ -1672,10 +1330,9 @@ if prompt:
                             )
 
 
+                        # 너무 긴 음성 생성 방지
                         speech_text = (
-                            assistant_response[
-                                :4000
-                            ]
+                            assistant_response[:4000]
                         )
 
 
@@ -1691,9 +1348,10 @@ if prompt:
                                 input=speech_text,
 
                                 instructions=(
-                                    "자연스럽고 밝은 한국어로 말하세요. "
-                                    "친구가 오늘 메뉴를 골라주는 것처럼 "
-                                    "따뜻하고 재미있게 말하세요."
+                                    "한국어로 자연스럽고 밝게 말하세요. "
+                                    "오늘 먹을 메뉴를 추천해주는 "
+                                    "친근한 친구처럼 이야기하세요. "
+                                    "말하는 속도는 너무 빠르지 않게 해주세요."
                                 )
                             )
                         ) as speech_response:
@@ -1720,7 +1378,7 @@ if prompt:
 
 
                     st.caption(
-                        "🔊 AI가 생성한 음성입니다."
+                        "🔊 아래 음성은 AI가 생성한 음성입니다."
                     )
 
 
@@ -1734,21 +1392,21 @@ if prompt:
                 except Exception as e:
 
                     st.warning(
-                        f"음성 생성 오류: {e}"
+                        f"음성 답변 생성 중 오류가 발생했습니다: {e}"
                     )
 
 
-            # =============================================
-            # 답변 저장
-            # =============================================
+            # =================================================
+            # AI 답변 저장
+            # =================================================
 
             assistant_message = {
-
                 "role": "assistant",
-
                 "content": assistant_response,
-
-                "final_menu": final_menu
+                "voice": (
+                    voice_mode
+                    and voice_answer
+                )
             }
 
 
@@ -1767,5 +1425,5 @@ if prompt:
         except Exception as e:
 
             st.error(
-                f"AI 답변 생성 오류: {e}"
+                f"AI 답변 생성 중 오류가 발생했습니다: {e}"
             )
