@@ -1,56 +1,548 @@
 import streamlit as st
 from openai import OpenAI
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+
+# =========================================================
+# 1. 페이지 설정
+# =========================================================
+
+st.set_page_config(
+    page_title="오늘 뭐 먹지?",
+    page_icon="🍽️",
+    layout="centered"
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+st.title("🍽️ 오늘 뭐 먹지?")
+
+st.write(
+    """
+    뭘 먹을지 고민될 때 취향과 상황을 알려주세요.
+
+    AI가 오늘 먹기 좋은 메뉴를 골라드립니다. 😋
+    """
+)
+
+
+# =========================================================
+# 2. OpenAI API KEY 설정
+# =========================================================
+
+# secrets.toml에 API Key가 있으면 자동으로 사용
+try:
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
+
+except Exception:
+
+    # secrets.toml이 없으면 직접 입력
+    openai_api_key = st.sidebar.text_input(
+        "OpenAI API Key",
+        type="password"
+    )
+
+
+# API Key가 없을 경우
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    st.info(
+        "왼쪽 메뉴에서 OpenAI API Key를 입력해주세요. 🔑"
+    )
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    st.stop()
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# OpenAI 연결
+client = OpenAI(
+    api_key=openai_api_key
+)
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
+# =========================================================
+# 3. 메뉴 추천 AI 역할 설정
+# =========================================================
+
+FOOD_SYSTEM_PROMPT = """
+당신은 사용자가 오늘 먹을 음식을 결정하도록 도와주는
+친근하고 센스 있는 AI 메뉴 추천 전문가입니다.
+
+사용자의 현재 상황, 취향, 예산, 음식 종류, 매운맛 선호도 등을
+종합해서 가장 어울리는 메뉴를 추천해야 합니다.
+
+
+[당신의 역할]
+
+사용자가
+
+"오늘 뭐 먹지?"
+"저녁 추천해줘"
+"매콤한 거 먹고 싶어"
+"만원 이하로 먹고 싶어"
+"데이트인데 메뉴 추천해줘"
+
+같은 말을 하면 상황을 분석해서 메뉴를 추천하세요.
+
+
+[메뉴 추천 기준]
+
+다음 정보를 가능한 한 고려하세요.
+
+1. 식사 시간
+2. 한식 / 중식 / 일식 / 양식 등 음식 종류
+3. 사용자의 현재 기분
+4. 매운 음식 선호도
+5. 예산
+6. 혼밥인지 여러 명이 먹는지
+7. 배달인지 외식인지
+8. 든든하게 먹고 싶은지 가볍게 먹고 싶은지
+9. 사용자가 먹지 못하는 음식
+10. 사용자가 이미 먹은 음식
+11. 날씨나 현재 위치처럼 확인되지 않은 정보는 임의로 만들어내지 마세요.
+
+
+[추천 방식]
+
+가능하면 메뉴를 3개 추천하세요.
+
+다음 형태를 기본으로 사용하세요.
+
+### 🥇 오늘의 1순위
+메뉴 이름
+
+추천 이유를 간단하게 설명하세요.
+
+### 🥈 2순위
+메뉴 이름
+
+간단한 이유를 설명하세요.
+
+### 🥉 3순위
+메뉴 이름
+
+간단한 이유를 설명하세요.
+
+
+그리고 마지막에는
+
+**오늘 하나만 고른다면: ○○**
+
+형태로 최종 메뉴 하나를 확실하게 골라주세요.
+
+
+[중요한 규칙]
+
+- 메뉴를 너무 많이 나열하지 마세요.
+- 사용자가 선택하기 더 어려워지지 않도록 최종적으로 하나를 골라주세요.
+- 똑같은 메뉴만 반복 추천하지 마세요.
+- 이전 대화에서 사용자가 싫다고 말한 음식은 다시 추천하지 마세요.
+- 사용자가 오늘 이미 먹었다고 말한 음식도 가급적 다시 추천하지 마세요.
+- 사용자가 못 먹는 재료나 알레르기를 말하면 반드시 제외하세요.
+- 사용자가 원하는 조건이 명확하면 불필요한 질문을 하지 말고 바로 추천하세요.
+- 정보가 너무 부족할 때만 1~2개의 간단한 질문을 하세요.
+- 설명은 너무 길게 하지 마세요.
+- 친근하고 자연스러운 한국어를 사용하세요.
+- 메뉴 선택을 도와주는 것이 목적이므로 우유부단하게 답하지 마세요.
+- 실제 존재 여부를 확인하지 않은 음식점이나 식당 이름은 만들어내지 마세요.
+"""
+
+
+# =========================================================
+# 4. 대화 기록 초기화
+# =========================================================
+
+if "messages" not in st.session_state:
+
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": """
+안녕하세요! 🍽️
+
+오늘도 **뭐 먹을지 고민 중이신가요?**
+
+제가 오늘 먹기 좋은 메뉴를 골라드릴게요. 😋
+
+왼쪽에서 간단하게 취향을 선택하거나,
+그냥 저에게 편하게 말해주세요.
+
+예를 들면,
+
+- **저녁 뭐 먹지?**
+- **매콤하고 든든한 거 먹고 싶어**
+- **만원 이하 혼밥 추천해줘**
+- **데이트인데 너무 무겁지 않은 음식 추천해줘**
+- **어제 치킨 먹었으니까 치킨 빼고 추천해줘**
+
+처럼 말씀해주시면 됩니다.
+"""
+        }
+    ]
+
+
+# =========================================================
+# 5. 사이드바 - 음식 취향 설정
+# =========================================================
+
+with st.sidebar:
+
+    st.header("🍴 오늘의 식사 설정")
+
+    st.caption(
+        "선택하지 않아도 챗봇과 바로 대화할 수 있어요."
+    )
+
+    # -----------------------------------------
+    # 식사 시간
+    # -----------------------------------------
+
+    meal_time = st.selectbox(
+        "🕐 언제 먹나요?",
+        [
+            "상관없음",
+            "아침",
+            "점심",
+            "저녁",
+            "야식"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 음식 종류
+    # -----------------------------------------
+
+    food_type = st.selectbox(
+        "🍚 어떤 종류가 당기나요?",
+        [
+            "상관없음",
+            "한식",
+            "중식",
+            "일식",
+            "양식",
+            "분식",
+            "아시아 음식",
+            "패스트푸드",
+            "샐러드 / 건강식"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 식사 상황
+    # -----------------------------------------
+
+    situation = st.selectbox(
+        "👥 누구와 먹나요?",
+        [
+            "상관없음",
+            "혼밥",
+            "친구",
+            "연인 / 데이트",
+            "가족",
+            "직장 동료"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 식사 방식
+    # -----------------------------------------
+
+    eating_method = st.selectbox(
+        "🏠 어떻게 먹을까요?",
+        [
+            "상관없음",
+            "외식",
+            "배달",
+            "포장",
+            "집에서 만들어 먹기"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 예산
+    # -----------------------------------------
+
+    budget = st.selectbox(
+        "💰 1인당 예산은?",
+        [
+            "상관없음",
+            "5,000원 이하",
+            "5,000원 ~ 10,000원",
+            "10,000원 ~ 15,000원",
+            "15,000원 ~ 30,000원",
+            "30,000원 이상"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 매운맛
+    # -----------------------------------------
+
+    spicy = st.select_slider(
+        "🌶️ 매운맛",
+        options=[
+            "안 매운 음식",
+            "살짝 매콤",
+            "적당히 매운맛",
+            "아주 매운맛",
+            "상관없음"
+        ],
+        value="상관없음"
+    )
+
+
+    # -----------------------------------------
+    # 배고픔
+    # -----------------------------------------
+
+    hunger = st.select_slider(
+        "🍖 지금 얼마나 배고픈가요?",
+        options=[
+            "가볍게",
+            "보통",
+            "든든하게",
+            "엄청 배고픔"
+        ],
+        value="보통"
+    )
+
+
+    # -----------------------------------------
+    # 현재 기분
+    # -----------------------------------------
+
+    mood = st.selectbox(
+        "😊 지금 기분은?",
+        [
+            "상관없음",
+            "기분 좋은 날",
+            "스트레스 받음",
+            "피곤함",
+            "우울함",
+            "뭔가 특별한 걸 먹고 싶음",
+            "그냥 빨리 먹고 싶음"
+        ]
+    )
+
+
+    # -----------------------------------------
+    # 제외할 음식
+    # -----------------------------------------
+
+    avoid_food = st.text_input(
+        "🚫 먹기 싫거나 못 먹는 음식",
+        placeholder="예: 해산물, 오이, 치즈"
+    )
+
+
+    st.divider()
+
+
+    # -----------------------------------------
+    # 대화 초기화
+    # -----------------------------------------
+
+    if st.button(
+        "🗑️ 대화 초기화",
+        use_container_width=True
+    ):
+
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": """
+새롭게 골라볼까요? 😋
+
+오늘 어떤 음식이 당기세요?
+
+왼쪽에서 조건을 선택하거나
+편하게 말씀해주세요!
+"""
+            }
+        ]
+
+        st.rerun()
+
+
+# =========================================================
+# 6. 현재 선택 조건 보여주기
+# =========================================================
+
+with st.expander("🍴 현재 선택한 조건 보기"):
+
+    st.write(f"**식사 시간:** {meal_time}")
+    st.write(f"**음식 종류:** {food_type}")
+    st.write(f"**식사 상대:** {situation}")
+    st.write(f"**식사 방식:** {eating_method}")
+    st.write(f"**예산:** {budget}")
+    st.write(f"**매운맛:** {spicy}")
+    st.write(f"**배고픔:** {hunger}")
+    st.write(f"**기분:** {mood}")
+
+    if avoid_food:
+        st.write(f"**제외 음식:** {avoid_food}")
+    else:
+        st.write("**제외 음식:** 없음")
+
+
+# =========================================================
+# 7. 기존 대화 출력
+# =========================================================
+
+for message in st.session_state.messages:
+
+    with st.chat_message(message["role"]):
+
+        st.markdown(
+            message["content"]
         )
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+
+# =========================================================
+# 8. 사용자 메시지 입력
+# =========================================================
+
+prompt = st.chat_input(
+    "오늘 뭐 먹을지 말씀해주세요 😋"
+)
+
+
+if prompt:
+
+    # -----------------------------------------
+    # 사용자 메시지 저장
+    # -----------------------------------------
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": prompt
+        }
+    )
+
+
+    # -----------------------------------------
+    # 사용자 메시지 화면 출력
+    # -----------------------------------------
+
+    with st.chat_message("user"):
+
+        st.markdown(prompt)
+
+
+    # =====================================================
+    # 9. 현재 사용자의 음식 조건 정리
+    # =====================================================
+
+    food_context = f"""
+현재 사용자의 메뉴 추천 조건입니다.
+
+식사 시간:
+{meal_time}
+
+선호 음식 종류:
+{food_type}
+
+누구와 먹는지:
+{situation}
+
+식사 방식:
+{eating_method}
+
+1인당 예상 예산:
+{budget}
+
+매운맛 선호:
+{spicy}
+
+배고픔 정도:
+{hunger}
+
+현재 기분:
+{mood}
+
+먹기 싫거나 먹지 못하는 음식:
+{avoid_food if avoid_food else "특별히 없음"}
+
+
+위의 조건과 사용자가 실제 대화에서 말한 내용을 함께 고려하세요.
+
+사용자가 대화에서 직접 말한 내용과
+위 선택 항목이 충돌하는 경우에는
+사용자가 대화에서 직접 말한 내용을 우선하세요.
+"""
+
+
+    # =====================================================
+    # 10. OpenAI에 전달할 대화 만들기
+    # =====================================================
+
+    conversation = []
+
+    for message in st.session_state.messages:
+
+        conversation.append(
+            {
+                "role": message["role"],
+                "content": message["content"]
+            }
+        )
+
+
+    # =====================================================
+    # 11. AI 메뉴 추천
+    # =====================================================
+
+    with st.chat_message("assistant"):
+
+        with st.spinner(
+            "오늘 먹기 좋은 메뉴를 고르는 중... 🍳"
+        ):
+
+            try:
+
+                response = client.responses.create(
+
+                    model="gpt-5.6-luna",
+
+                    instructions=(
+                        FOOD_SYSTEM_PROMPT
+                        + "\n\n"
+                        + food_context
+                    ),
+
+                    input=conversation
+                )
+
+
+                # AI 답변 가져오기
+                assistant_response = response.output_text
+
+
+                # -----------------------------------------
+                # 화면에 출력
+                # -----------------------------------------
+
+                st.markdown(
+                    assistant_response
+                )
+
+
+                # -----------------------------------------
+                # 대화 기록에 저장
+                # -----------------------------------------
+
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": assistant_response
+                    }
+                )
+
+
+            except Exception as e:
+
+                st.error(
+                    f"오류가 발생했습니다: {e}"
+                )
